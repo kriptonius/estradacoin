@@ -90,7 +90,7 @@ def consensus():
     reason = "Nuestra cadena ya era la más larga"
     for peer in peers:
         try:
-            resp = requests.get(f"{peer}/chain", timeout=3)
+            resp = requests.get(f"{peer}/chain", timeout=20)
             if resp.status_code == 200:
                 data = resp.json()
                 ok, msg = blockchain.replace_chain(data["chain"])
