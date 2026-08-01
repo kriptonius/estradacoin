@@ -6,10 +6,12 @@ import os
 import sys
 import requests
 from flask import Flask, jsonify, request
+from flask_cors import CORS
 from blockchain import Blockchain, Transaction
 from wallet import Wallet, address_from_public_key
 
 app = Flask(__name__)
+CORS(app)  # permite que el wallet (abierto como archivo local) hable con este nodo
 
 blockchain = Blockchain()
 peers = set()
