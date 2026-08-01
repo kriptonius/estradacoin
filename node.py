@@ -51,12 +51,12 @@ def mine():
 @app.route("/transactions/new", methods=["POST"])
 def new_transaction():
     values = request.get_json()
-    required = ["sender", "recipient", "amount", "public_key_hex", "signature"]
+    required = ["sender", "recipient", "amount", "public_key_hex", "signature", "timestamp"]
     if not all(k in values for k in required):
-        return jsonify({"error": "Faltan campos"}), 400
+        return jsonify({"error": "Faltan campos (incluyendo 'timestamp', el mismo que se usó para firmar)"}), 400
 
     tx = Transaction(values["sender"], values["recipient"], values["amount"],
-                      values["public_key_hex"], values["signature"])
+                      values["public_key_hex"], values["signature"], timestamp=values["timestamp"])
     try:
         blockchain.add_transaction(tx)
     except ValueError as e:
@@ -90,7 +90,7 @@ def consensus():
     reason = "Nuestra cadena ya era la más larga"
     for peer in peers:
         try:
-            resp = requests.get(f"{peer}/chain", timeout=20)
+            resp = requests.get(f"{peer}/chain", timeout=3)
             if resp.status_code == 200:
                 data = resp.json()
                 ok, msg = blockchain.replace_chain(data["chain"])

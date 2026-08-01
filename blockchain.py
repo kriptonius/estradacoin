@@ -12,14 +12,14 @@ DIFFICULTY = 4  # número de ceros iniciales requeridos en el hash
 
 
 class Transaction:
-    def __init__(self, sender, recipient, amount, public_key_hex=None, signature=None, tx_type="transfer"):
+    def __init__(self, sender, recipient, amount, public_key_hex=None, signature=None, tx_type="transfer", timestamp=None):
         self.sender = sender          # dirección, o "COINBASE" para recompensa de minería
         self.recipient = recipient
         self.amount = amount
         self.public_key_hex = public_key_hex
         self.signature = signature
         self.tx_type = tx_type
-        self.timestamp = time.time()
+        self.timestamp = timestamp if timestamp is not None else time.time()
 
     def to_dict(self, include_signature=True):
         d = {

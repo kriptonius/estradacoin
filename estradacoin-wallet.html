@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EstradaCoin — Wallet</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/elliptic/6.5.4/elliptic.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0B0D10; --bg-raised:#14171b; --coral:#FF6B4A; --coral-dim:#7a3626;
+    --text:#e8e6e1; --text-dim:#8a8f96; --line:#22262b; --ok:#3ddc84; --warn:#e8b93d; --err:#ff5c5c;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{background:var(--bg); color:var(--text); font-family:'Space Grotesk', sans-serif; min-height:100vh; padding:20px 16px 80px;}
+  .wrap{max-width:680px; margin:0 auto;}
+  .eyebrow{font-family:'IBM Plex Mono', monospace; font-size:12px; color:var(--coral); letter-spacing:.08em; text-transform:uppercase;}
+  h1{font-size:28px; font-weight:700; margin:6px 0 4px; letter-spacing:-.01em;}
+  .sub{color:var(--text-dim); font-size:13px; margin-bottom:22px;}
+  .panel{background:var(--bg-raised); border:1px solid var(--line); border-radius:14px; padding:18px; margin-bottom:14px;}
+  .panel h2{font-size:13px; font-weight:600; color:var(--text-dim); text-transform:uppercase; letter-spacing:.06em; margin-bottom:12px; display:flex; align-items:center; justify-content:space-between;}
+  label{display:block; font-size:11px; color:var(--text-dim); margin-bottom:5px; font-family:'IBM Plex Mono', monospace;}
+  input[type=text], input[type=number], textarea{
+    width:100%; background:#0B0D10; border:1px solid var(--line); color:var(--text);
+    padding:10px 11px; border-radius:8px; font-family:'IBM Plex Mono', monospace; font-size:13px; margin-bottom:12px;
+  }
+  textarea{resize:vertical; min-height:60px;}
+  input:focus, textarea:focus{outline:none; border-color:var(--coral);}
+  button{
+    font-family:'Space Grotesk', sans-serif; font-weight:600; font-size:14px; border:none; border-radius:9px;
+    padding:11px 16px; cursor:pointer;
+  }
+  button.primary{background:var(--coral); color:#0B0D10; width:100%;}
+  button.primary:disabled{background:var(--coral-dim); color:#00000066;}
+  button.ghost{background:transparent; border:1px solid var(--line); color:var(--text-dim); font-size:12px; padding:7px 12px;}
+  .row{display:flex; gap:8px;}
+  .row > *{flex:1;}
+  .addr-box{
+    font-family:'IBM Plex Mono', monospace; font-size:12px; background:#0B0D10; border:1px solid var(--line);
+    border-radius:8px; padding:10px 11px; word-break:break-all; color:var(--ok); margin-bottom:10px;
+  }
+  .balance{font-size:34px; font-weight:700; font-family:'IBM Plex Mono', monospace; margin:6px 0 2px;}
+  .balance small{font-size:16px; color:var(--text-dim); font-weight:500;}
+  .status{font-family:'IBM Plex Mono', monospace; font-size:11px; padding:5px 0;}
+  .status.ok{color:var(--ok);} .status.warn{color:var(--warn);} .status.err{color:var(--err);}
+  .warning-box{
+    background:#2a1a10; border:1px solid #7a4a26; border-radius:8px; padding:10px 12px;
+    font-size:12px; color:var(--warn); margin-bottom:12px; line-height:1.5;
+  }
+  .privkey-toggle{font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--text-dim); word-break:break-all;}
+  .log{font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--text-dim); line-height:1.6; white-space:pre-wrap;}
+  .hidden{display:none;}
+  .divider{height:1px; background:var(--line); margin:14px 0;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">ESC · Wallet en vivo</div>
+  <h1>EstradaCoin Wallet</h1>
+  <p class="sub">Conectado directo a tus nodos reales en Render. Tu clave privada nunca sale de este navegador.</p>
+
+  <div class="panel">
+    <h2>Nodo</h2>
+    <label>URL del nodo</label>
+    <input type="text" id="nodeUrl" value="https://estradacoin-node-1.onrender.com">
+    <div class="row">
+      <button class="ghost" id="btnPing">Probar conexión</button>
+    </div>
+    <div class="status" id="nodeStatus"></div>
+  </div>
+
+  <div class="panel" id="noWalletPanel">
+    <h2>Tu wallet</h2>
+    <button class="primary" id="btnCreateWallet">Crear wallet nueva</button>
+    <div class="divider"></div>
+    <label>O importa una clave privada existente (hex)</label>
+    <textarea id="importKey" placeholder="clave privada en hex..."></textarea>
+    <button class="ghost" id="btnImportWallet">Importar</button>
+  </div>
+
+  <div class="panel hidden" id="walletPanel">
+    <h2>Tu wallet <button class="ghost" id="btnForget">Olvidar wallet</button></h2>
+    <label>Dirección</label>
+    <div class="addr-box" id="myAddress"></div>
+    <div class="balance"><span id="myBalance">—</span><small> ESC</small></div>
+    <button class="ghost" id="btnRefreshBalance">Actualizar saldo</button>
+    <div class="divider"></div>
+    <label>Clave privada (guárdala tú, solo tú la tienes)</label>
+    <button class="ghost" id="btnTogglePriv">Mostrar clave privada</button>
+    <div class="privkey-toggle hidden" id="privKeyBox" style="margin-top:8px;"></div>
+  </div>
+
+  <div class="panel hidden" id="mineSendPanel">
+    <h2>Minar</h2>
+    <p class="sub" style="margin-bottom:10px;">Mina un bloque y recibe 50 ESC de recompensa (puede tardar si el nodo estaba dormido).</p>
+    <button class="primary" id="btnMine">Minar bloque</button>
+  </div>
+
+  <div class="panel hidden" id="sendPanel">
+    <h2>Enviar ESC</h2>
+    <label>Dirección destino</label>
+    <input type="text" id="sendTo" placeholder="EST...">
+    <label>Cantidad</label>
+    <input type="number" id="sendAmount" placeholder="0.0" step="0.01">
+    <button class="primary" id="btnSend">Firmar y enviar</button>
+  </div>
+
+  <div class="panel">
+    <h2>Actividad</h2>
+    <div class="log" id="log">esperando acción...</div>
+  </div>
+</div>
+
+<script>
+const EC = elliptic.ec;
+const ec = new EC('secp256k1');
+let keyPair = null;
+
+const $ = id => document.getElementById(id);
+function log(msg, cls){
+  const el = $('log');
+  const time = new Date().toLocaleTimeString('es-PE');
+  el.textContent = `[${time}] ${msg}\n` + el.textContent;
+}
+function nodeUrl(){ return $('nodeUrl').value.trim().replace(/\/$/, ''); }
+
+async function sha256Hex(bytes){
+  const buf = await crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+function hexToBytes(hex){
+  const arr = new Uint8Array(hex.length/2);
+  for(let i=0;i<hex.length;i+=2) arr[i/2] = parseInt(hex.substr(i,2),16);
+  return arr;
+}
+async function addressFromPubHex(pubHex){
+  const bytes = hexToBytes(pubHex);
+  const hash = await sha256Hex(bytes);
+  return 'EST' + hash.slice(0,34);
+}
+
+function pyMessage(sender, recipient, amount, timestamp, txType){
+  return `{"amount": ${amount}, "recipient": ${JSON.stringify(recipient)}, "sender": ${JSON.stringify(sender)}, "timestamp": ${timestamp}, "tx_type": ${JSON.stringify(txType)}}`;
+}
+
+async function signMessage(msgStr){
+  const digestHex = await sha256Hex(new TextEncoder().encode(msgStr));
+  const sig = keyPair.sign(hexToBytes(digestHex));
+  return sig.toDER('hex');
+}
+
+// ---- Wallet UI ----
+async function showWallet(){
+  const pubHex = keyPair.getPublic(true, 'hex');
+  const addr = await addressFromPubHex(pubHex);
+  $('myAddress').textContent = addr;
+  $('privKeyBox').textContent = keyPair.getPrivate('hex');
+  $('noWalletPanel').classList.add('hidden');
+  $('walletPanel').classList.remove('hidden');
+  $('mineSendPanel').classList.remove('hidden');
+  $('sendPanel').classList.remove('hidden');
+  refreshBalance();
+}
+
+$('btnCreateWallet').onclick = () => {
+  keyPair = ec.genKeyPair();
+  log('Wallet nueva creada. Guarda tu clave privada en un lugar seguro.');
+  showWallet();
+};
+
+$('btnImportWallet').onclick = () => {
+  const hex = $('importKey').value.trim();
+  if(!hex){ log('Pega una clave privada primero.'); return; }
+  try{
+    keyPair = ec.keyFromPrivate(hex, 'hex');
+    log('Wallet importada correctamente.');
+    showWallet();
+  }catch(e){
+    log('Error importando clave: ' + e.message);
+  }
+};
+
+$('btnForget').onclick = () => {
+  keyPair = null;
+  $('walletPanel').classList.add('hidden');
+  $('mineSendPanel').classList.add('hidden');
+  $('sendPanel').classList.add('hidden');
+  $('noWalletPanel').classList.remove('hidden');
+  log('Wallet olvidada de este navegador.');
+};
+
+$('btnTogglePriv').onclick = () => {
+  const box = $('privKeyBox');
+  box.classList.toggle('hidden');
+  $('btnTogglePriv').textContent = box.classList.contains('hidden') ? 'Mostrar clave privada' : 'Ocultar clave privada';
+};
+
+// ---- Node status ----
+$('btnPing').onclick = async () => {
+  const el = $('nodeStatus');
+  el.textContent = 'consultando (puede tardar ~30-50s si el nodo estaba dormido)...';
+  el.className = 'status warn';
+  try{
+    const resp = await fetch(nodeUrl() + '/');
+    const data = await resp.json();
+    el.textContent = `activo · dirección de minería del nodo: ${data.node_address} · bloques: ${data.chain_length} · peers: ${data.peers.length}`;
+    el.className = 'status ok';
+  }catch(e){
+    el.textContent = 'no se pudo conectar: ' + e.message;
+    el.className = 'status err';
+  }
+};
+
+// ---- Balance ----
+async function refreshBalance(){
+  if(!keyPair) return;
+  const pubHex = keyPair.getPublic(true, 'hex');
+  const addr = await addressFromPubHex(pubHex);
+  $('myBalance').textContent = '...';
+  try{
+    const resp = await fetch(nodeUrl() + '/balance/' + addr);
+    const data = await resp.json();
+    $('myBalance').textContent = data.balance;
+    log('Saldo actualizado: ' + data.balance + ' ESC');
+  }catch(e){
+    $('myBalance').textContent = '—';
+    log('Error consultando saldo: ' + e.message);
+  }
+}
+$('btnRefreshBalance').onclick = refreshBalance;
+
+// ---- Mine ----
+$('btnMine').onclick = async () => {
+  const btn = $('btnMine');
+  btn.disabled = true;
+  const pubHex = keyPair.getPublic(true, 'hex');
+  const addr = await addressFromPubHex(pubHex);
+  log('Minando bloque para ' + addr + ' (esto puede tardar si el nodo estaba dormido)...');
+  try{
+    const resp = await fetch(nodeUrl() + '/mine?address=' + encodeURIComponent(addr));
+    const data = await resp.json();
+    if(data.block){
+      log('Bloque #' + data.block.index + ' minado. Hash: ' + data.block.hash.slice(0,20) + '...');
+      refreshBalance();
+    }else{
+      log('Respuesta inesperada: ' + JSON.stringify(data));
+    }
+  }catch(e){
+    log('Error minando: ' + e.message);
+  }
+  btn.disabled = false;
+};
+
+// ---- Send ----
+$('btnSend').onclick = async () => {
+  const btn = $('btnSend');
+  const recipient = $('sendTo').value.trim();
+  const amount = parseFloat($('sendAmount').value);
+  if(!recipient || !amount || amount <= 0){
+    log('Completa destino y cantidad válidos.');
+    return;
+  }
+  btn.disabled = true;
+  try{
+    const pubHex = keyPair.getPublic(true, 'hex');
+    const sender = await addressFromPubHex(pubHex);
+    const timestamp = Date.now() / 1000;
+    const msg = pyMessage(sender, recipient, amount, timestamp, 'transfer');
+    const signature = await signMessage(msg);
+
+    const payload = {
+      sender, recipient, amount, timestamp,
+      public_key_hex: pubHex,
+      signature
+    };
+
+    log('Enviando transacción firmada (' + amount + ' ESC → ' + recipient.slice(0,12) + '...)...');
+    const resp = await fetch(nodeUrl() + '/transactions/new', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload)
+    });
+    const data = await resp.json();
+    if(resp.ok){
+      log('Transacción aceptada en el pool. Falta que alguien mine un bloque para confirmarla.');
+      $('sendTo').value = ''; $('sendAmount').value = '';
+    }else{
+      log('Rechazada: ' + (data.error || JSON.stringify(data)));
+    }
+  }catch(e){
+    log('Error enviando: ' + e.message);
+  }
+  btn.disabled = false;
+};
+</script>
+</body>
+</html>
